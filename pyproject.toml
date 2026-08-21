@@ -1,0 +1,19 @@
+[project]
+name = "airbyte"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "kagglehub>=1.0.2",
+    "psycopg2-binary>=2.9.12",
+    "python-dotenv>=1.2.3",
+    "stripe>=11.0.0",
+    "boto3>=1.35.0",
+    "gspread>=6.1.0",
+    "google-auth>=2.35.0",
+    "dbt-core>=1.8",
+    "dbt-duckdb>=1.8",
+    "great-expectations>=1.0",
+    "duckdb>=1.1",
+]

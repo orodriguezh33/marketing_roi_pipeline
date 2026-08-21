@@ -1,0 +1,17 @@
+# Perfil dbt-duckdb apuntando a MotherDuck. MOTHERDUCK_TOKEN ya existe en
+# .env desde Fase 1 -- dbt no carga .env solo, hay que exportarlo antes de
+# correr dbt (ver docs/setup/fase3-instalacion.md).
+#
+# El token NO va en `settings:` -- dbt-duckdb aplica ese bloque como SET
+# después de conectar, y la extensión motherduck solo acepta el token al
+# adjuntar la base (attach). Hay que exportarlo como env var en minúscula
+# `motherduck_token` (la extensión la lee automáticamente), además de
+# `MOTHERDUCK_TOKEN` para el resto del repo.
+marketing_roi:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "md:marketing_roi"
+      schema: dev
+      threads: 4

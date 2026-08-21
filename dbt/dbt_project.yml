@@ -1,0 +1,29 @@
+name: "marketing_roi"
+version: "1.0.0"
+config-version: 2
+
+profile: "marketing_roi"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# raw_* (Fase 2) -> staging (view, 1:1 con la fuente) -> marts (table, modelo
+# dimensional). Ver docs/ROADMAP.md -> Fase 3 -> "Listo para implementar".
+seeds:
+  marketing_roi:
+    +schema: staging
+
+models:
+  marketing_roi:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts

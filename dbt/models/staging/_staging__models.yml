@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: stg_postgres__customers
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+
+  - name: stg_postgres__sellers
+    columns:
+      - name: seller_id
+        tests: [not_null, unique]
+
+  - name: stg_postgres__products
+    columns:
+      - name: product_id
+        tests: [not_null, unique]
+
+  - name: stg_postgres__product_category_translation
+    columns:
+      - name: product_category_name
+        tests: [not_null, unique]
+
+  - name: stg_postgres__orders
+    columns:
+      - name: order_id
+        tests: [not_null, unique]
+      - name: order_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["approved", "canceled", "created", "delivered",
+                         "invoiced", "processing", "shipped", "unavailable"]
+
+  - name: stg_postgres__order_items
+    tests:
+      - unique:
+          arguments:
+            column_name: "order_id || '-' || order_item_id"
+    columns:
+      - name: order_id
+        tests: [not_null]
+      - name: order_item_id
+        tests: [not_null]
+
+  - name: stg_postgres__order_payments
+    tests:
+      - unique:
+          arguments:
+            column_name: "order_id || '-' || payment_sequential"
+    columns:
+      - name: order_id
+        tests: [not_null]
+
+  - name: stg_postgres__order_reviews
+    columns:
+      - name: review_id
+        tests: [not_null, unique]
+
+  - name: stg_stripe__charges
+    columns:
+      - name: charge_id
+        tests: [not_null, unique]
+
+  - name: stg_s3__ads_spend
+    tests:
+      - unique:
+          arguments:
+            column_name: "spend_date || '-' || channel"
+
+  - name: stg_sheets__budget
+    tests:
+      - unique:
+          arguments:
+            column_name: "month || '-' || channel"

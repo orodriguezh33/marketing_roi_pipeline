@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: dim_customer
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+
+  - name: dim_product
+    columns:
+      - name: product_id
+        tests: [not_null, unique]
+
+  - name: dim_channel
+    columns:
+      - name: channel
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: ["Google Ads", "Facebook Ads", "Instagram Ads", "Email Marketing"]
+
+  - name: dim_date
+    columns:
+      - name: date_day
+        tests: [not_null, unique]
+
+  - name: fct_orders
+    columns:
+      - name: order_id
+        tests: [not_null, unique]
+      - name: customer_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+      - name: order_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["approved", "canceled", "created", "delivered",
+                         "invoiced", "processing", "shipped", "unavailable"]
+
+  - name: fct_marketing_performance
+    tests:
+      - unique:
+          arguments:
+            column_name: "date_day || '-' || channel"
+    columns:
+      - name: channel
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel
+      - name: date_day
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day

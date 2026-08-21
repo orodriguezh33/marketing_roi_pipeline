@@ -1,0 +1,33 @@
+version: 2
+
+sources:
+  - name: raw_postgres
+    schema: raw_postgres
+    description: Tablas Olist replicadas por CDC desde Postgres (Fase 2).
+    tables:
+      - name: customers
+      - name: sellers
+      - name: products
+      - name: product_category_name_translation
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: order_reviews
+
+  - name: raw_stripe
+    schema: raw_stripe
+    description: Charges de Stripe test mode, sync incremental (Fase 2).
+    tables:
+      - name: charges
+
+  - name: raw_s3
+    schema: raw_s3
+    description: CSVs de gasto en ads desde MinIO, sync full refresh (Fase 2).
+    tables:
+      - name: ads_spend
+
+  - name: raw_sheets
+    schema: raw_sheets
+    description: Metas de presupuesto de marketing desde Google Sheets (Fase 2).
+    tables:
+      - name: budget

@@ -1,0 +1,23 @@
+.claude/
+docs/
+.DS_Store
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.python-version
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+dbt_packages/
+
+# secretos locales
+.env
+secrets/
+
+# credenciales de Kaggle si se descargan localmente (kagglehub usa ~/.kaggle por defecto,
+# pero por las dudas si algo cae dentro del repo)
+kaggle.json
