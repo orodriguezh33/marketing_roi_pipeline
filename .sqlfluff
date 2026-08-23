@@ -1,0 +1,17 @@
+# Config del hook local (.claude/hooks/sqlfluff.sh) y de la CI (.github/workflows/ci.yml).
+[sqlfluff]
+dialect = duckdb
+templater = dbt
+max_line_length = 100
+
+# LT02/LT09: reglas de indentación/layout muy opinadas -- el estilo del proyecto
+# (4 espacios, CTEs con columnas alineadas) es consistente pero no calza con el
+# default de sqlfluff; reformatear ~15 modelos ya testeados no vale el riesgo.
+# ST06: exige wildcards/columnas simples antes que cálculos -- estilo, no bug.
+# RF04: year/month/day/quarter como alias de columna en dim_date -- son nombres
+# de columna estándar en un date spine, no identificadores ambiguos reales acá.
+exclude_rules = layout.indent, layout.select_targets, structure.column_order, references.keywords
+
+[sqlfluff:templater:dbt]
+project_dir = dbt
+profiles_dir = dbt

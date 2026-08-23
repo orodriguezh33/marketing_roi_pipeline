@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "be959a8b-3511-4f0a-8650-985e6336f8bc",
+      "name": "fct_marketing_performance_asset"
+    },
+    "batch_definition": {
+      "id": "2dc17555-a141-4e27-b6f2-35d838db2882",
+      "name": "fct_marketing_performance_batch"
+    },
+    "datasource": {
+      "id": "0264ea0a-42f5-43c3-a05d-66175907fe62",
+      "name": "marts_pandas"
+    }
+  },
+  "id": "15990f58-31f5-488c-9a79-4e0bd1b6b194",
+  "name": "fct_marketing_performance_validation",
+  "suite": {
+    "id": "9aa06236-3ad0-4e04-8dcd-4c972c1f18b4",
+    "name": "fct_marketing_performance_suite"
+  }
+}

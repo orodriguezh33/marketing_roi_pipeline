@@ -1,0 +1,142 @@
+# Orquestación de Fase 5 (docs/ROADMAP.md). Adaptado del docker-compose.yaml oficial
+# de Airflow 3.3.1 (https://airflow.apache.org/docs/apache-airflow/3.3.1/docker-compose.yaml)
+# a modo LocalExecutor: sin Celery/Redis/worker/flower, un único Postgres de metadata
+# propio (distinto del Postgres fuente de ../docker-compose.yml).
+#
+# Uso: desde este directorio (airflow/), `docker compose up -d` — las rutas relativas
+# (./dags, ./logs, ../) se resuelven relativas a este archivo.
+x-airflow-common: &airflow-common
+  image: apache/airflow:3.3.1-python3.12
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    # Airflow 3.x: scheduler y dag-processor hablan con el api-server via esta API
+    # interna (Task Execution Interface), separada de la UI/API pública en :8080.
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?AIRFLOW_JWT_SECRET no está definido — copiá .env.example a .env y completalo}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?AIRFLOW_FERNET_KEY no está definido — copiá .env.example a .env y completalo}
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    # Paquetes extra: providers de Airbyte y Slack (versiones fijas, ver ROADMAP Fase 5),
+    # FAB (requerido por AUTH_MANAGER arriba) y uv (para correr dbt/Great Expectations
+    # con el mismo lockfile del repo, sin duplicar el entorno Python).
+    _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-airbyte==5.5.2 apache-airflow-providers-slack==9.10.2 apache-airflow-providers-fab uv"
+    # uv debe construir su propio venv Linux dentro del contenedor — el .venv del
+    # host es macOS y no es binario-compatible. UV_LINK_MODE=copy evita symlinks
+    # rotos entre el cache de uv (named volume) y el venv (otro named volume).
+    UV_PROJECT_ENVIRONMENT: /opt/airflow/uv-venv
+    UV_LINK_MODE: copy
+    MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:?MOTHERDUCK_TOKEN no está definido — copiá .env.example a .env y completalo}
+    AIRBYTE_CONNECTION_ID_POSTGRES: ${AIRBYTE_CONNECTION_ID_POSTGRES:-}
+    AIRBYTE_CONNECTION_ID_STRIPE: ${AIRBYTE_CONNECTION_ID_STRIPE:-}
+    AIRBYTE_CONNECTION_ID_S3: ${AIRBYTE_CONNECTION_ID_S3:-}
+    AIRBYTE_CONNECTION_ID_SHEETS: ${AIRBYTE_CONNECTION_ID_SHEETS:-}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./config:/opt/airflow/config
+    - ./plugins:/opt/airflow/plugins
+    # Repo completo, para que las BashOperator de dbt/Great Expectations corran
+    # `uv run` contra el mismo pyproject.toml/uv.lock que se usa fuera de Docker.
+    - ../:/opt/airflow/repo
+    - uv_venv:/opt/airflow/uv-venv
+    - uv_cache:/opt/airflow/uv-cache
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: airbyte-mkt-roi-airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  airflow-apiserver:
+    <<: *airflow-common
+    container_name: airbyte-mkt-roi-airflow-apiserver
+    command: api-server
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airbyte-mkt-roi-airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    container_name: airbyte-mkt-roi-airflow-dag-processor
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airbyte-mkt-roi-airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airflow/uv-venv /opt/airflow/uv-cache
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/{logs,dags,plugins,uv-venv,uv-cache}
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:?_AIRFLOW_WWW_USER_USERNAME no está definido — copiá .env.example a .env y completalo}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:?_AIRFLOW_WWW_USER_PASSWORD no está definido — copiá .env.example a .env y completalo}
+      # Corre como root (ver `user:` abajo) para poder hacer chown de los bind
+      # mounts. El entrypoint oficial corta con error si _PIP_ADDITIONAL_REQUIREMENTS
+      # está seteado y el usuario es root ("You are running pip as root") — se
+      # vacía acá; el install real pasa en los otros servicios (uid no-root).
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    user: "0:0"
+
+volumes:
+  airflow_postgres_data:
+  uv_venv:
+  uv_cache:

@@ -3,7 +3,7 @@ name = "airbyte"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "kagglehub>=1.0.2",
     "psycopg2-binary>=2.9.12",
@@ -17,3 +17,15 @@ dependencies = [
     "great-expectations>=1.0",
     "duckdb>=1.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.ruff.lint]
+# DTZ005/DTZ011: datetime.now()/date.today() naive son intencionales -- alimentan
+# columnas Postgres `timestamp` sin tz (ver infra/postgres/init/01_schema.sql) y
+# nombres de archivo/año locales. Volverlos tz-aware correría el riesgo real de
+# correr el valor guardado por el offset UTC al insertarse en una columna naive.
+ignore = ["DTZ005", "DTZ011"]

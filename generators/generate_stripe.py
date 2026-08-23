@@ -21,14 +21,20 @@ OLIST_HISTORICAL_CUTOFF = "2019-01-01"
 
 
 def connect_postgres():
+    port = os.environ.get("POSTGRES_PORT")
+    dbname = os.environ.get("POSTGRES_DB")
+    user = os.environ.get("POSTGRES_USER")
     password = os.environ.get("POSTGRES_PASSWORD")
-    if not password:
-        sys.exit("POSTGRES_PASSWORD no está definido -- completá .env primero.")
+    if not all([port, dbname, user, password]):
+        sys.exit(
+            "Faltan variables de Postgres en .env "
+            "(POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD)."
+        )
     return psycopg2.connect(
         host="localhost",
-        port=5434,
-        dbname="olist",
-        user="airbyte_reader",
+        port=port,
+        dbname=dbname,
+        user=user,
         password=password,
     )
 
@@ -49,7 +55,7 @@ def fetch_recent_orders(cur, limit: int):
 
 
 def create_charge(order_id: str, payment_value) -> str:
-    amount_cents = int(round(float(payment_value) * 100))
+    amount_cents = round(float(payment_value) * 100)
     charge = stripe.Charge.create(
         amount=amount_cents,
         currency="brl",
@@ -79,9 +85,8 @@ def main() -> None:
 
     conn = connect_postgres()
     try:
-        with conn:
-            with conn.cursor() as cur:
-                orders = fetch_recent_orders(cur, args.limit)
+        with conn, conn.cursor() as cur:
+            orders = fetch_recent_orders(cur, args.limit)
     finally:
         conn.close()
 

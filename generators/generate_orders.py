@@ -34,14 +34,20 @@ PAYMENT_TYPES = ["credit_card", "boleto", "voucher", "debit_card"]
 
 def connect():
     load_dotenv()
+    port = os.environ.get("POSTGRES_PORT")
+    dbname = os.environ.get("POSTGRES_DB")
+    user = os.environ.get("POSTGRES_USER")
     password = os.environ.get("POSTGRES_PASSWORD")
-    if not password:
-        sys.exit("POSTGRES_PASSWORD no está definido -- completá .env primero.")
+    if not all([port, dbname, user, password]):
+        sys.exit(
+            "Faltan variables de Postgres en .env "
+            "(POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD)."
+        )
     return psycopg2.connect(
         host="localhost",
-        port=5434,
-        dbname="olist",
-        user="airbyte_reader",
+        port=port,
+        dbname=dbname,
+        user=user,
         password=password,
     )
 
@@ -149,10 +155,9 @@ def main() -> None:
 
     conn = connect()
     try:
-        with conn:
-            with conn.cursor() as cur:
-                inserted = insert_new_orders(cur, args.new_orders)
-                updated = advance_existing_orders(cur, args.advance_orders)
+        with conn, conn.cursor() as cur:
+            inserted = insert_new_orders(cur, args.new_orders)
+            updated = advance_existing_orders(cur, args.advance_orders)
         print(f"Pedidos nuevos insertados: {inserted}")
         print(f"Pedidos existentes avanzados de estado: {updated}")
     finally:

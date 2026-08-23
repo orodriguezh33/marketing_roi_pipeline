@@ -2,30 +2,53 @@ version: 2
 
 models:
   - name: stg_postgres__customers
+    description: >
+      1:1 con raw_postgres.customers (CDC). customer_id es PK en Postgres,
+      sin dedup necesario; filtra tombstones de CDC (_ab_cdc_deleted_at).
     columns:
       - name: customer_id
+        description: PK del cliente en Postgres (Olist).
         tests: [not_null, unique]
 
   - name: stg_postgres__sellers
+    description: >
+      1:1 con raw_postgres.sellers (CDC). seller_id es PK en Postgres, sin
+      dedup necesario; filtra tombstones de CDC.
     columns:
       - name: seller_id
+        description: PK del vendedor en Postgres (Olist).
         tests: [not_null, unique]
 
   - name: stg_postgres__products
+    description: >
+      1:1 con raw_postgres.products (CDC) más la traducción de categoría a
+      inglés (join contra stg_postgres__product_category_translation).
     columns:
       - name: product_id
+        description: PK del producto en Postgres (Olist).
         tests: [not_null, unique]
 
   - name: stg_postgres__product_category_translation
+    description: >
+      1:1 con raw_postgres.product_category_name_translation. Tabla de
+      lookup estática (CSV de Olist), usada por stg_postgres__products
+      para traducir la categoría a inglés.
     columns:
       - name: product_category_name
+        description: Nombre de categoría en portugués (clave de lookup).
         tests: [not_null, unique]
 
   - name: stg_postgres__orders
+    description: >
+      1:1 con raw_postgres.orders (CDC). order_id es PK en Postgres, sin
+      dedup necesario. Los timestamps de entrega quedan nulos cuando esa
+      etapa todavía no ocurrió (no significa dato faltante).
     columns:
       - name: order_id
+        description: PK del pedido en Postgres (Olist).
         tests: [not_null, unique]
       - name: order_status
+        description: Estado del pedido en la progresión created -> ... -> delivered, o una rama alternativa (canceled/unavailable/invoiced).
         tests:
           - accepted_values:
               arguments:
@@ -33,42 +56,78 @@ models:
                          "invoiced", "processing", "shipped", "unavailable"]
 
   - name: stg_postgres__order_items
+    description: >
+      1:1 con raw_postgres.order_items (CDC). PK compuesta
+      (order_id, order_item_id) en Postgres, sin dedup necesario.
     tests:
       - unique:
           arguments:
             column_name: "order_id || '-' || order_item_id"
     columns:
       - name: order_id
+        description: FK hacia stg_postgres__orders.
         tests: [not_null]
       - name: order_item_id
+        description: Número de línea del ítem dentro del pedido (parte de la PK compuesta).
         tests: [not_null]
 
   - name: stg_postgres__order_payments
+    description: >
+      1:1 con raw_postgres.order_payments (CDC). PK compuesta (order_id,
+      payment_sequential) en Postgres. payment_source = 'legacy' identifica
+      el sistema de origen -- fct_orders unifica esto con
+      stg_stripe__charges (payment_source = 'stripe') en un solo concepto
+      de pago.
     tests:
       - unique:
           arguments:
             column_name: "order_id || '-' || payment_sequential"
     columns:
       - name: order_id
+        description: FK hacia stg_postgres__orders.
         tests: [not_null]
 
   - name: stg_postgres__order_reviews
+    description: >
+      raw_postgres.order_reviews sin PK real -- el dataset trae ~100 filas
+      con review_id duplicado. Deduplicado acá: por cada review_id
+      duplicado se conserva la fila con review_answer_timestamp más
+      reciente (decisión #10, ver docs/ROADMAP.md -> Fase 3).
     columns:
       - name: review_id
+        description: Identificador de la reseña, único luego del dedup por review_answer_timestamp.
         tests: [not_null, unique]
 
   - name: stg_stripe__charges
+    description: >
+      1:1 con raw_stripe.charges (sync incremental). `id` es único por
+      diseño de Stripe. order_id sale de metadata.order_id y es el vínculo
+      hacia raw_postgres.orders. amount se convierte de centavos a unidades
+      de moneda para ser comparable con order_payments.payment_value.
+      payment_source = 'stripe' identifica el sistema de origen.
     columns:
       - name: charge_id
+        description: PK del charge en Stripe (id original, renombrado).
         tests: [not_null, unique]
 
   - name: stg_s3__ads_spend
+    description: >
+      raw_s3.ads_spend (full refresh): casting de tipos + normalización de
+      canal vía el seed channel_mapping. Deduplicado por (date, channel),
+      conservando la fila más reciente por _airbyte_extracted_at (el
+      generador no sobrescribe CSVs viejos y el sync relee todos los
+      archivos en cada corrida).
     tests:
       - unique:
           arguments:
             column_name: "spend_date || '-' || channel"
 
   - name: stg_sheets__budget
+    description: >
+      raw_sheets.budget (full refresh): 1:1 con la hoja, solo casting.
+      `channel` ya viene en forma canónica en esta fuente (mantenida por el
+      negocio). budget_target se normaliza desde coma decimal antes de
+      castear.
     tests:
       - unique:
           arguments:

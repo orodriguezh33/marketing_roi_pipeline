@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint (ruff, yamllint, markdownlint, uv audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Python environment
+        run: uv sync --locked
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: pytest
+        run: uv run pytest tests/
+
+      - name: yamllint
+        run: uvx --from yamllint yamllint .
+
+      - name: markdownlint-cli2
+        run: npx --yes markdownlint-cli2 "**/*.md"
+
+      - name: uv audit (dependency vulnerabilities)
+        run: uv audit
+
+  dbt:
+    name: dbt build + sqlfluff (needs MOTHERDUCK_TOKEN)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Python environment
+        run: uv sync --locked
+
+      - name: Check MOTHERDUCK_TOKEN secret is configured
+        id: token_check
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: |
+          if [ -z "$MOTHERDUCK_TOKEN" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::MOTHERDUCK_TOKEN no está configurado como secret del repo -- se omiten dbt build y sqlfluff (necesitan conexión real a MotherDuck)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: sqlfluff lint
+        if: steps.token_check.outputs.skip == 'false'
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+          motherduck_token: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: uv run --with sqlfluff --with sqlfluff-templater-dbt sqlfluff lint dbt/models
+
+      - name: dbt build
+        if: steps.token_check.outputs.skip == 'false'
+        working-directory: dbt
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+          motherduck_token: ${{ secrets.MOTHERDUCK_TOKEN }}
+          DBT_PROFILES_DIR: .
+        run: uv run dbt build

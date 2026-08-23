@@ -2,18 +2,31 @@ version: 2
 
 models:
   - name: dim_customer
+    description: >
+      Dimensión de cliente. Grano: un customer_id (alias por pedido en el
+      dataset Olist; customer_unique_id es la persona real). Se mantiene
+      customer_id como grano para que el join 1:1 contra fct_orders sea
+      directo.
     columns:
       - name: customer_id
+        description: PK de la dimensión, mismo grano que stg_postgres__customers.
         tests: [not_null, unique]
 
   - name: dim_product
+    description: "Dimensión de producto. Grano: un product_id."
     columns:
       - name: product_id
+        description: PK de la dimensión, mismo grano que stg_postgres__products.
         tests: [not_null, unique]
 
   - name: dim_channel
+    description: >
+      Dimensión de canal de marketing. Grano: un canal canónico, derivado
+      de los valores distintos del seed channel_mapping (no un literal
+      hardcodeado).
     columns:
       - name: channel
+        description: Nombre canónico del canal de marketing (post-normalización de variantes de export).
         tests:
           - not_null
           - unique
@@ -22,21 +35,34 @@ models:
                 values: ["Google Ads", "Facebook Ads", "Instagram Ads", "Email Marketing"]
 
   - name: dim_date
+    description: >
+      Spine de fechas. Grano: un día calendario. Rango derivado del mínimo
+      y máximo real entre fechas de pedidos y fechas de gasto en ads, no de
+      una fecha fija.
     columns:
       - name: date_day
+        description: PK de la dimensión, un día calendario.
         tests: [not_null, unique]
 
   - name: fct_orders
+    description: >
+      Hechos de pedido. Grano: un order_id. Reconcilia pagos legacy
+      (Postgres order_payments) con charges post-migración (Stripe) --
+      Stripe tiene prioridad sobre legacy cuando ambos existen para el
+      mismo order_id (representan el mismo cobro, no se suman).
     columns:
       - name: order_id
+        description: PK del hecho, mismo grano que stg_postgres__orders.
         tests: [not_null, unique]
       - name: customer_id
+        description: FK hacia dim_customer.
         tests:
           - relationships:
               arguments:
                 to: ref('dim_customer')
                 field: customer_id
       - name: order_status
+        description: Estado del pedido en la progresión created -> ... -> delivered, o una rama alternativa (canceled/unavailable/invoiced).
         tests:
           - accepted_values:
               arguments:
@@ -44,12 +70,20 @@ models:
                          "invoiced", "processing", "shipped", "unavailable"]
 
   - name: fct_marketing_performance
+    description: >
+      Hechos de performance de marketing. Grano: canal x fecha. Ningún
+      pedido/pago trae un campo de canal de marketing en los datos de
+      origen, así que revenue y clientes nuevos del día se reparten entre
+      los canales activos ese día en proporción a su share de spend
+      (`spend_share`) -- es una estimación de atribución explícita del
+      negocio, no un hecho medido.
     tests:
       - unique:
           arguments:
             column_name: "date_day || '-' || channel"
     columns:
       - name: channel
+        description: FK hacia dim_channel.
         tests:
           - not_null
           - relationships:
@@ -57,6 +91,7 @@ models:
                 to: ref('dim_channel')
                 field: channel
       - name: date_day
+        description: FK hacia dim_date.
         tests:
           - not_null
           - relationships:

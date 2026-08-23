@@ -4,11 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Pre-implementation.** This repo currently contains only design documents and Claude Code
-scaffolding — no pipeline code, infra, or dbt project exists yet. There is nothing to build,
-lint, or test at this stage. Before writing code, read `docs/ROADMAP.md` (the current source
-of truth); `docs/DESIGN.md` is an earlier draft, explicitly superseded by the roadmap, and
-should only be consulted for historical context on decisions that are now closed.
+**Fases 1-5 implemented, Power BI dashboard pending.** Postgres+CDC, the 4 Airbyte connections
+into MotherDuck, the dbt staging/marts project, and the dbt-tests/Great-Expectations quality
+layer are all built and verified — see `docs/CHECKLIST-IMPLEMENTACION.md` for the exact state
+of each phase. Fase 5 (Airflow orchestration) went through the `implementation-readiness`
+skill on 2026-08-21 and the DAG ran green end-to-end on 2026-08-22. What's left is the Power BI
+dashboard. Read `docs/ROADMAP.md` (the current source of truth) before touching remaining work;
+`docs/DESIGN.md` is an earlier draft, explicitly superseded by the roadmap, and should only be
+consulted for historical context on decisions that are now closed.
 
 Note: both `docs/` and `.claude/` are gitignored, so design docs and any hook/skill/agent
 changes made under those paths are local-only and will not be committed.
@@ -21,7 +24,7 @@ revenue vs. budget). The scenario deliberately combines four heterogeneous sourc
 ingestion/CDC/reconciliation work is real rather than contrived:
 
 | Source | Role |
-|---|---|
+| --- | --- |
 | Postgres (Olist historical dataset + a synthetic order generator) | Transactional core; CDC target |
 | Stripe (test mode) | "Modern" post-migration payments, linked to Postgres orders via `metadata.order_id` |
 | S3/MinIO (synthetic CSVs) | Ad spend by channel/date |
@@ -29,7 +32,7 @@ ingestion/CDC/reconciliation work is real rather than contrived:
 
 ## Intended architecture (per `docs/ROADMAP.md`)
 
-```
+```text
 Postgres (CDC) ─┐
 Stripe (incr)   ├─►  Airbyte OSS (4 manual connections)  ─►  MotherDuck  ─►  dbt  ─►  Power BI
 S3 (full)       │        via `abctl`, Destinations V2         (raw + typed)  (staging/marts)  (DirectQuery,
@@ -40,6 +43,7 @@ Sheets (full)  ─┘                                                           
 ```
 
 Key decisions locked in the roadmap:
+
 - **Airbyte connections are all manual-trigger** — Airflow is the single source of truth for
   scheduling; nothing relies on Airbyte's native scheduler.
 - **MotherDuck's Airbyte connector implements Destinations V2** — dbt should build on the
@@ -57,6 +61,7 @@ Key decisions locked in the roadmap:
 ## Local Claude Code guardrails
 
 Hooks in `.claude/hooks/` (gitignored, but active for this session) enforce:
+
 - **Bash commands are blocked** (not just warned) if they contain: `rm -rf /` or `rm -rf *`,
   a pipe into `sh`/`bash`/`zsh`, `DROP TABLE`/`DELETE FROM`, or a redirect (`>`/`>>`) into an
   `.env` file (`validate-commands.sh`).

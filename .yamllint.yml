@@ -1,0 +1,15 @@
+# Config del hook local (.claude/hooks/yamllint.sh) y de la CI (.github/workflows/ci.yml).
+# El default de yamllint (80 cols, exige "---") es más estricto que el estilo real del
+# repo (docker-compose con comentarios largos inline, dbt yml sin document-start) --
+# se relaja acá en vez de reformatear archivos funcionales para complacer al linter.
+extends: default
+
+ignore: |
+  .venv/
+  dbt/target/
+  dbt/logs/
+
+rules:
+  line-length:
+    max: 170
+  document-start: disable

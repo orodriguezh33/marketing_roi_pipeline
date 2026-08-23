@@ -1,0 +1,19 @@
+# Config del hook local (.claude/hooks/lint-markdown.sh) y de la CI
+# (.github/workflows/ci.yml).
+default: true
+
+# Prosa en párrafos largos sin wrap manual a 80 cols -- reformatear todos los
+# docs existentes para complacer el default no vale el riesgo/ruido.
+MD013: false
+
+# CLAUDE.md usa "# Security Policy" como segunda sección top-level a propósito
+# (convención de Claude Code para archivos de instrucciones), no es un error
+# de estructura.
+MD025: false
+
+# Las tablas de quality/profiling/reports/ (generadas por run_profiling.py) tienen
+# ancho de columna variable según los datos reales (valores de value_frequencies,
+# min/max, etc.) -- exigir alineación de pipes ("aligned" style) obligaría a
+# recalcular el padding de cada tabla en cada corrida solo para complacer al
+# linter, sobre datos que cambian. No aplica a contenido escrito a mano.
+MD060: false

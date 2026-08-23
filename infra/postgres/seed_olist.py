@@ -81,15 +81,14 @@ def main() -> None:
         password=password,
     )
     try:
-        with conn:
-            with conn.cursor() as cur:
-                for filename in LOAD_ORDER:
-                    table = FILE_TO_TABLE[filename]
-                    csv_path = dataset_dir / filename
-                    if not csv_path.exists():
-                        sys.exit(f"No se encontró {filename} en {dataset_dir}")
-                    rows = load_csv(cur, csv_path, table)
-                    print(f"{table}: {rows} filas")
+        with conn, conn.cursor() as cur:
+            for filename in LOAD_ORDER:
+                table = FILE_TO_TABLE[filename]
+                csv_path = dataset_dir / filename
+                if not csv_path.exists():
+                    sys.exit(f"No se encontró {filename} en {dataset_dir}")
+                rows = load_csv(cur, csv_path, table)
+                print(f"{table}: {rows} filas")
     finally:
         conn.close()
 

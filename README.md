@@ -6,7 +6,8 @@ trae?" (CAC, ROAS, revenue vs. presupuesto). Combina cuatro fuentes heterogénea
 (Postgres vía CDC, Stripe, S3/MinIO, Google Sheets) orquestadas con Airflow, cargadas
 vía Airbyte OSS a MotherDuck y transformadas con dbt.
 
-**Estado:** diseño cerrado, en construcción (Fase 1 de la implementación).
+**Estado:** diseño cerrado; Fases 1-4 implementadas (infra, ingesta 4 fuentes, dbt,
+calidad de datos), Fase 5 (Airflow + Power BI) pendiente.
 
 ## Stack
 

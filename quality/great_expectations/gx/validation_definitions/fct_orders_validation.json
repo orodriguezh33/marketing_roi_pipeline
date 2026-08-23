@@ -1,0 +1,22 @@
+{
+  "data": {
+    "asset": {
+      "id": "7031dcf2-e7f8-494e-9a78-17254ee8aa73",
+      "name": "fct_orders_asset"
+    },
+    "batch_definition": {
+      "id": "6e94bf8e-0b04-41e1-be0b-3ba0f5ebdb8d",
+      "name": "fct_orders_batch"
+    },
+    "datasource": {
+      "id": "0264ea0a-42f5-43c3-a05d-66175907fe62",
+      "name": "marts_pandas"
+    }
+  },
+  "id": "6558519e-dbfe-4036-a588-4041a733db56",
+  "name": "fct_orders_validation",
+  "suite": {
+    "id": "a685d96b-6dbf-442c-aaa8-fe32cf3fa29f",
+    "name": "fct_orders_suite"
+  }
+}

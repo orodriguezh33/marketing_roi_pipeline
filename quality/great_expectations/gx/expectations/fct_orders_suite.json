@@ -1,0 +1,40 @@
+{
+  "expectations": [
+    {
+      "id": "42493b11-cdf0-4c8c-bfd3-d54f922f2b18",
+      "kwargs": {
+        "column": "payment_value",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "35283120-29c7-45f9-97b8-3d71e64ee90a",
+      "kwargs": {
+        "column": "order_value",
+        "min_value": 0.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_between"
+    },
+    {
+      "id": "f595cae2-aa0c-4ee4-bace-85879e76fd05",
+      "kwargs": {
+        "column": "item_count",
+        "min_value": 1.0
+      },
+      "meta": {},
+      "severity": "critical",
+      "type": "expect_column_values_to_be_between"
+    }
+  ],
+  "id": "a685d96b-6dbf-442c-aaa8-fe32cf3fa29f",
+  "meta": {
+    "great_expectations_version": "1.21.0"
+  },
+  "name": "fct_orders_suite",
+  "notes": null
+}
