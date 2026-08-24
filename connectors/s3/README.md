@@ -1,7 +1,9 @@
 # S3 (MinIO) — `minio-ads-spend`
 
-Gasto de ads por canal/fecha: CSVs escritos por `generators/generate_ads_spend.py` a
-un bucket MinIO local (sustituto de S3).
+Gasto de ads por canal/fecha (`generators/generate_ads_spend.py`) y, desde Fase 3 —
+Ampliación (decisión #15, ver `docs/ROADMAP.md`), atribución de marketing a nivel de
+orden (`generators/generate_attribution.py`): ambos generadores escriben CSVs al mismo
+bucket MinIO local (sustituto de S3), en prefijos distintos.
 
 ## Source
 
@@ -12,15 +14,18 @@ un bucket MinIO local (sustituto de S3).
 - Endpoint: `http://host.docker.internal:${MINIO_PORT}`.
 - Bucket: `ads-spend`.
 - Access key / secret: `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`.
-- Streams → un stream:
+- Streams → dos streams (misma Source, no una connection nueva):
   - Name: `ads_spend`.
-  - Globs: `raw/ads_spend/*.csv` (lista — agregar el patrón como entrada).
-  - Format: CSV.
+    - Globs: `raw/ads_spend/*.csv` (lista — agregar el patrón como entrada).
+    - Format: CSV.
+  - Name: `attribution` (agregado en la Ampliación 2026-08-24).
+    - Globs: `raw/attribution/*.csv`.
+    - Format: CSV.
 - Delivery Method: **Replicate Records** (default).
-- Sync mode: **Full refresh | Replicate Source** (no "Append Historical Changes") —
-  el generador no sobrescribe CSVs viejos, cada sync relee todos los archivos que
-  matchean el glob, así que "Append Historical Changes" duplicaría filas de archivos
-  ya sincronizados en corridas anteriores.
+- Sync mode, ambos streams: **Full refresh | Replicate Source** (no "Append Historical
+  Changes") — ninguno de los dos generadores sobrescribe CSVs viejos, cada sync relee
+  todos los archivos que matchean el glob, así que "Append Historical Changes"
+  duplicaría filas de archivos ya sincronizados en corridas anteriores.
 
 ## Destination
 
@@ -47,4 +52,7 @@ solo el orchestrator notando que el proceso de destino murió — no la causa ra
 
 ## Estado
 
-Verificado en MotherDuck: `raw_s3.ads_spend` con 4388 filas.
+Verificado en MotherDuck: `raw_s3.ads_spend` con 4388 filas. `raw_s3.attribution`
+(stream nuevo, Ampliación 2026-08-24): generadores corridos y CSVs subidos a MinIO —
+falta agregar el stream en la UI de Airbyte y correr el sync para que aparezca en
+MotherDuck.
