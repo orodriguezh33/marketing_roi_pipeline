@@ -59,7 +59,7 @@ Los tres ERDs siguientes son el detalle columna-por-columna de cada capa
 modelado (dedup, tipado, claves compuestas) pasan de raw a staging y de
 staging a marts.
 
-<details>
+<details open>
 <summary><strong>Raw sources</strong> — tablas tal como llegan de Airbyte (Postgres CDC, Stripe, S3, Sheets)</summary>
 
 ![Raw sources](img/raw-sources-db.png)
@@ -75,7 +75,7 @@ Notas de la capa raw:
 
 </details>
 
-<details>
+<details open>
 <summary><strong>Staging (dbt)</strong> — modelos <code>stg_*</code>, tipados y deduplicados</summary>
 
 ![Staging dbt](img/Stagin-dbt.png)
@@ -94,7 +94,7 @@ Decisiones de staging que valen la pena resaltar:
 
 </details>
 
-<details>
+<details open>
 <summary><strong>Marts (dbt, star schema)</strong> — dimensiones y hechos consumidos por Power BI</summary>
 
 ![Marts star schema](img/MARTS-dbt,star%20schema.png)
