@@ -82,6 +82,29 @@ Hooks in `.claude/hooks/` (gitignored, but active for this session) enforce:
 These are enforced by the harness, not by convention — expect denials rather than warnings
 if a command trips one of the above.
 
+## Automated commit checkpoints
+
+This is the durable, explicit authorization for automatic git commits in this repo (the
+project's history previously had no commits at all until Fase 5 landed as one bundled
+"Initial commit" — this closes that gap going forward).
+
+**Claude is authorized to commit automatically, without asking each time, whenever a
+coherent unit of work is finished and verified** — invoke the `checkpoint-commit` skill for
+this (it in turn uses `smart-commit`'s staging/secret-check/message logic). A "unit of work"
+means something like: a dbt model plus passing tests, a DAG/task confirmed working, a GE
+suite passing, a bug fixed and confirmed, a roadmap sub-task checked off — not mid-task or
+unverified state.
+
+This authorization is scoped narrowly:
+
+- Local commits only. It does **not** extend to `git push`, force-push, rebase, amending
+  published commits, or any other history-rewriting/remote-affecting operation — those still
+  require asking first, per the general git safety rules.
+- It doesn't override the existing hooks (secrets, lint, dbt test) — a blocked commit should
+  surface to the user, never be bypassed.
+- For a full regeneration of `CHANGELOG.md` alongside a commit, use `dev-pipeline` — that
+  remains something to invoke when asked, not on every small checkpoint.
+
 # Security Policy
 
 - Never hardcode API keys or passwords. Always use environment variables via `os.environ` or `os.getenv`.

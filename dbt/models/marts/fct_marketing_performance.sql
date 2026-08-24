@@ -6,6 +6,19 @@
 -- (`spend_share`). Es una estimación de atribución, no un hecho medido --
 -- se deja `spend_share` visible en el mart para que el consumidor sepa que
 -- `attributed_revenue`/`attributed_new_customers` son derivados, no reales.
+--
+-- `budget_target` es NULL para todo el histórico Olist (2016-2018): decisión
+-- de negocio explícita, no bug -- generate_budget.py solo escribe metas para
+-- el año en curso (operación actual), no un backfill retroactivo para años
+-- previos al proyecto. El histórico sirve para revenue/spend/ROAS, no para
+-- budget-vs-actual.
+--
+-- Hueco 2019-2025: decisión de negocio explícita, no bug de sync. Olist real
+-- termina en oct-2018; generate_orders.py/generate_ads_spend.py simulan
+-- actividad "actual" (hoy), no un backfill retroactivo de esos 7 años. El
+-- mart salta de oct-2018 a la fecha real de operación (2026 en adelante) --
+-- un consumidor (ej. Power BI) debe anotar o filtrar el gap, no interpretarlo
+-- como datos faltantes de un sync roto.
 
 with orders_customers as (
 

@@ -98,3 +98,9 @@ models:
               arguments:
                 to: ref('dim_date')
                 field: date_day
+      - name: budget_target
+        description: >
+          Meta de presupuesto (Google Sheets) para ese canal/mes. NULL para
+          todo el histórico Olist (2016-2018) por decisión de negocio -- el
+          Sheet solo mantiene metas del año en curso, no un backfill
+          retroactivo. Esperado, no un bug de sync.
