@@ -17,3 +17,12 @@ MD025: false
 # recalcular el padding de cada tabla en cada corrida solo para complacer al
 # linter, sobre datos que cambian. No aplica a contenido escrito a mano.
 MD060: false
+
+# README usa <details>/<summary> (colapsables de GitHub) para los ERDs
+# detallados de raw/staging/marts -- no hay equivalente en markdown puro.
+MD033:
+  allowed_elements:
+    - details
+    - summary
+    - strong
+    - code
