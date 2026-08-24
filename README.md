@@ -1,55 +1,97 @@
 # Marketing ROI Pipeline
 
-Proyecto de portafolio de data engineering: pipeline de ingesta para responder,
-para un e-commerce, "¿cuánto gastamos en marketing por canal vs. cuánto revenue nos
-trae?" (CAC, ROAS, revenue vs. presupuesto). Combina cuatro fuentes heterogéneas
-(Postgres vía CDC, Stripe, S3/MinIO, Google Sheets) orquestadas con Airflow, cargadas
-vía Airbyte OSS a MotherDuck y transformadas con dbt.
+Proyecto de portafolio de data engineering: un pipeline de ingesta, transformación
+y calidad de datos que responde, para un e-commerce, **"¿cuánto gastamos en
+marketing por canal vs. cuánto revenue nos trae?"** (CAC, ROAS, revenue vs.
+presupuesto).
 
-**Estado:** diseño cerrado; Fases 1-4 implementadas (infra, ingesta 4 fuentes, dbt,
-calidad de datos), Fase 5 (Airflow + Power BI) pendiente.
+El escenario combina deliberadamente cuatro fuentes heterogéneas para que el
+trabajo de ingesta/CDC/reconciliación sea real y no trivial:
+
+| Fuente | Rol |
+| --- | --- |
+| **Postgres** (dataset histórico Olist + generador sintético) | Núcleo transaccional; objetivo de CDC |
+| **Stripe** (test mode) | Pagos "modernos" post-migración, enlazados a las órdenes de Postgres vía `metadata.order_id` |
+| **S3 / MinIO** (CSVs sintéticos) | Gasto publicitario por canal y fecha |
+| **Google Sheets** | Presupuesto de marketing objetivo por mes y canal |
+
+Todo se orquesta con **Airflow**, se ingesta con **Airbyte OSS** hacia
+**MotherDuck**, se transforma con **dbt**, se valida con **dbt tests +
+Great Expectations**, y se consume desde **Power BI**.
+
+## Arquitectura
+
+![Arquitectura del pipeline](img/01-Marketing%20ROI%20Pipeline%20-%20Arquitectura.png)
+
+```text
+Postgres (CDC) ─┐
+Stripe (incr)   ├─►  Airbyte OSS (4 conexiones)  ─►  MotherDuck  ─►  dbt  ─►  Power BI
+S3 (full)       │        vía `abctl`, Destinations V2   (raw + typed)  (staging/marts)  (DirectQuery,
+Sheets (full)  ─┘                                                                        endpoint Postgres)
+
+                    Airflow (Docker Compose) orquesta:
+              trigger syncs → dbt run → dbt test → checkpoint Great Expectations
+```
+
+Decisiones clave:
+
+- Las 4 conexiones de Airbyte son **manual-trigger**: Airflow es la única fuente
+  de verdad para el scheduling, no se depende del scheduler nativo de Airbyte.
+- El conector de MotherDuck usa **Destinations V2**: dbt construye sobre las
+  tablas tipadas finales, no sobre el JSON crudo de `airbyte_internal`.
+- dbt corre vía `BashOperator` desde Airflow (no Cosmos), contra `dbt-duckdb`
+  con un profile `md:`.
+- La calidad es de dos capas: **dbt tests** (`not_null`, `unique`,
+  `relationships`, `accepted_values`) para checks estructurales, y
+  **Great Expectations** para rangos numéricos, distribuciones y freshness —
+  ambas corren como tasks separadas en Airflow, así una falla de calidad
+  bloquea que Power BI lea datos malos.
+
+## Modelo dbt (staging → marts)
+
+![Linaje dbt](img/03-dbt-lineage.png)
+
+11 modelos de `staging` (uno por entidad de fuente: `stg_postgres__*`,
+`stg_stripe__charges`, `stg_s3__ads_spend`, `stg_sheets__budget`) alimentan 6
+modelos de `marts`: `dim_customer`, `dim_product`, `dim_channel`, `dim_date`,
+`fct_orders` (reconcilia pago legacy de Postgres + Stripe) y
+`fct_marketing_performance` (grano canal × fecha, con CAC, ROAS y revenue vs.
+meta).
+
+## Orquestación con Airflow
+
+![DAG de Airflow](img/04-airflow-dag.png)
+
+El DAG `marketing_roi_pipeline` (`schedule=None`, trigger manual) encadena:
+4× `AirbyteTriggerSyncOperator` (Postgres → Stripe → MinIO → Sheets, en
+secuencia) → `dbt run` → `dbt test` → checkpoint de Great Expectations, con
+alertas a Slack (`#airflow-marketing-roi`) en éxito y en fallo de cualquier
+task.
+
+## Estado del proyecto
+
+**Fases 1-5 implementadas, dashboard de Power BI pendiente.** Postgres+CDC, las
+4 conexiones de Airbyte hacia MotherDuck, el proyecto dbt de staging/marts y la
+capa de calidad dbt-tests/Great Expectations están construidos y verificados.
+La Fase 5 (orquestación con Airflow) corrió el DAG en verde de punta a punta.
+Lo que falta es el dashboard de Power BI.
 
 ## Stack
 
-Airbyte OSS (`abctl`) → MotherDuck → dbt (`dbt-duckdb`) → Power BI, orquestado por
-Airflow. Detalle completo de arquitectura y decisiones en la documentación de diseño
-del proyecto (no incluida en este repo — ver nota abajo).
+Postgres · Stripe · S3/MinIO · Google Sheets → **Airbyte OSS** (`abctl`) →
+**MotherDuck** → **dbt** (`dbt-duckdb`) → **Power BI**, orquestado por
+**Apache Airflow** (Docker Compose), con calidad de datos vía **dbt tests** +
+**Great Expectations** y alertas en **Slack**.
 
 ## Notas de desarrollo local
 
-### Airbyte Postgres source: SSL Modes en `disable`
-
-El source de Postgres en Airbyte se configura con **SSL Modes = `disable`**, en vez
-del `require` que la UI propone por defecto.
-
-El Postgres de este proyecto corre localmente vía `docker-compose.yml`
-(`postgres:16`, sin certificados configurados, `ssl = off`). Con `require`, el driver
-JDBC intenta forzar TLS, el servidor no lo soporta, y la conexión se corta de
-inmediato ("Config check failed" en el check de Airbyte, apenas después de abrir la
-conexión).
-
-Es una decisión deliberada, no un descuido: Airbyte (corriendo en el cluster `kind`
-local de `abctl`) y Postgres viven en la misma máquina, dentro de Docker Desktop —
-cifrar ese tráfico no agrega protección real. Si el pipeline llegara a apuntar a un
-Postgres remoto, este valor debe volver a `require`/`verify-full` con certificados
-configurados en el servidor.
-
-### `host.docker.internal` resolviendo a una IPv6 sin ruta desde los pods
-
-Con `SSL Modes = disable` el check de Airbyte seguía fallando igual de rápido. Causa
-real: `host.docker.internal` devuelve tanto una dirección IPv6 como una IPv4; desde
-la red de pods del cluster `kind` de `abctl`, la IPv6 no tiene ruta de salida
-("Network is unreachable"), y el conector (JVM) prueba esa dirección primero, falla
-al instante, y nunca reintenta con la IPv4 que sí conecta.
-
-Fix aplicado: un `ConfigMap` de CoreDNS (`kube-system`, dentro del cluster `kind`,
-fuera de este repo) que fija `host.docker.internal` a la IPv4 que efectivamente
-conecta, para todo el cluster — así cualquier conector futuro que use ese hostname
-(MinIO en Fase 2, por ejemplo) no vuelve a pisar el mismo problema. El paso a paso
-completo (diagnóstico + comando) está en la documentación de setup local (ver nota
-abajo).
+Levantar Airbyte contra el Postgres local requirió resolver dos problemas de
+red no triviales (SSL deshabilitado a propósito entre contenedores en la
+misma máquina, y un bug de resolución DNS de `host.docker.internal` en el
+cluster `kind` de `abctl`) — diagnóstico y fix completos en
+[ENGINEERING_NOTES.md](ENGINEERING_NOTES.md).
 
 ---
 
 Nota: la documentación de diseño y planificación de este proyecto vive en `docs/`,
-que está excluido del repo (`.gitignore`) por ser material de trabajo en progreso.
+que está excluida del repo (`.gitignore`) por ser material de trabajo en progreso.
