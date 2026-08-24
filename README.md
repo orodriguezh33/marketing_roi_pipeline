@@ -47,16 +47,67 @@ Decisiones clave:
   ambas corren como tasks separadas en Airflow, así una falla de calidad
   bloquea que Power BI lea datos malos.
 
-## Modelo dbt (staging → marts)
+## Modelo de datos: raw → staging → marts
 
 ![Linaje dbt](img/03-dbt-lineage.png)
 
-11 modelos de `staging` (uno por entidad de fuente: `stg_postgres__*`,
-`stg_stripe__charges`, `stg_s3__ads_spend`, `stg_sheets__budget`) alimentan 6
-modelos de `marts`: `dim_customer`, `dim_product`, `dim_channel`, `dim_date`,
-`fct_orders` (reconcilia pago legacy de Postgres + Stripe) y
-`fct_marketing_performance` (grano canal × fecha, con CAC, ROAS y revenue vs.
-meta).
+Grafo de dependencias `ref()`/`source()`: qué modelo de `staging` alimenta a
+qué modelo de `marts`.
+
+Los tres ERDs siguientes son el detalle columna-por-columna de cada capa
+(generados con drawDB) — útiles para ver exactamente qué decisiones de
+modelado (dedup, tipado, claves compuestas) pasan de raw a staging y de
+staging a marts.
+
+<details>
+<summary><strong>Raw sources</strong> — tablas tal como llegan de Airbyte (Postgres CDC, Stripe, S3, Sheets)</summary>
+
+![Raw sources](img/raw-sources-db.png)
+
+Notas de la capa raw:
+
+- `raw_postgres.order_reviews` no tiene PK real: el dataset trae ~100 filas
+  con `review_id` duplicado — la dedup queda a cargo de staging.
+- `raw_postgres.geolocation` existe en el schema de Postgres pero no tiene
+  modelo de staging — no se usa en el pipeline actual de marketing-ROI.
+- `raw_postgres.customers` no tiene FKs reales; la integridad referencial se
+  valida en dbt (`relationships` tests), no en el schema de origen.
+
+</details>
+
+<details>
+<summary><strong>Staging (dbt)</strong> — modelos <code>stg_*</code>, tipados y deduplicados</summary>
+
+![Staging dbt](img/Stagin-dbt.png)
+
+Decisiones de staging que valen la pena resaltar:
+
+- `stg_postgres__order_reviews` deduplica por `review_id`, quedándose con el
+  `review_answer_timestamp` más reciente.
+- `stg_s3__ads_spend` es único por `(spend_date, channel)`, deduplicado por
+  `_airbyte_extracted_at`.
+- `stg_s3__attribution` tiene grano `order_id` (no todo `order_id` tiene fila
+  — atribución directa/orgánica a propósito).
+- El seed `channel_mapping` normaliza variantes de nombre de canal
+  (`google_ads`, `GoogleAds` → `Google Ads`) usadas tanto por
+  `stg_s3__ads_spend` como por `stg_s3__attribution`.
+
+</details>
+
+<details>
+<summary><strong>Marts (dbt, star schema)</strong> — dimensiones y hechos consumidos por Power BI</summary>
+
+![Marts star schema](img/MARTS-dbt,star%20schema.png)
+
+- `fct_orders` reconcilia el pago legacy de Postgres con Stripe — cuando
+  ambos existen para la misma orden no se suman (mismo cobro).
+- `fct_marketing_performance` (grano canal × fecha) calcula
+  `attributed_revenue`/`attributed_new_customers` como sumas/conteos reales
+  vía atribución medida (`stg_s3__attribution`), no proporcional.
+- `dim_channel` tiene grano de un canal canónico, derivado del seed
+  `channel_mapping`.
+
+</details>
 
 ## Orquestación con Airflow
 

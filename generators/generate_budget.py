@@ -18,7 +18,8 @@ from datetime import date
 import gspread
 from dotenv import load_dotenv
 
-CHANNELS = ["Google Ads", "Facebook Ads", "Instagram Ads", "Email Marketing"]
+from channel_profiles import CHANNELS
+
 WORKSHEET_NAME = "budget"
 
 

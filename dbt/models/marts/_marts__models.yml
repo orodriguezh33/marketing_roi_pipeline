@@ -68,15 +68,32 @@ models:
               arguments:
                 values: ["approved", "canceled", "created", "delivered",
                          "invoiced", "processing", "shipped", "unavailable"]
+      - name: marketing_channel
+        description: >
+          Canal de marketing atribuido al pedido (stg_s3__attribution,
+          decisión #15). NULL = direct/organic, sin touchpoint -- valor
+          legítimo, no dato faltante.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Google Ads", "Facebook Ads", "Instagram Ads", "Email Marketing"]
+                config:
+                  where: "marketing_channel is not null"
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel
+                config:
+                  where: "marketing_channel is not null"
 
   - name: fct_marketing_performance
     description: >
-      Hechos de performance de marketing. Grano: canal x fecha. Ningún
-      pedido/pago trae un campo de canal de marketing en los datos de
-      origen, así que revenue y clientes nuevos del día se reparten entre
-      los canales activos ese día en proporción a su share de spend
-      (`spend_share`) -- es una estimación de atribución explícita del
-      negocio, no un hecho medido.
+      Hechos de performance de marketing. Grano: canal x fecha.
+      attributed_revenue/attributed_new_customers son sumas/conteos reales
+      de fct_orders agrupados por (fecha, marketing_channel) -- atribución
+      medida a nivel de orden vía stg_s3__attribution (decisión #15), no una
+      estimación proporcional. spend_share se conserva como columna
+      informativa (share de presupuesto por canal).
     tests:
       - unique:
           arguments:

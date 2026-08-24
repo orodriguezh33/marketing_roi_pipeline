@@ -22,9 +22,13 @@ sources:
 
   - name: raw_s3
     schema: raw_s3
-    description: CSVs de gasto en ads desde MinIO, sync full refresh (Fase 2).
+    description: >
+      CSVs de gasto en ads y atribución de marketing desde MinIO, sync full
+      refresh (Fase 2; `attribution` agregado en Fase 3 -- Ampliación, ver
+      docs/ROADMAP.md decisión #15).
     tables:
       - name: ads_spend
+      - name: attribution
 
   - name: raw_sheets
     schema: raw_sheets

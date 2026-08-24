@@ -10,6 +10,11 @@
 -- propia fila legacy) -- son el mismo cobro representado en el sistema
 -- nuevo, no un segundo pago independiente. Sumar ambos duplicaría revenue
 -- para esos pedidos.
+--
+-- marketing_channel viene de stg_s3__attribution (export tipo GA4/UTM
+-- last-click, ver docs/ROADMAP.md -> Fase 3, Ampliación, decisión #15).
+-- NULL es un valor legítimo -- direct/organic, sin touchpoint de marketing --
+-- no un dato faltante.
 
 with items as (
 
@@ -63,6 +68,12 @@ orders as (
 
     select * from {{ ref('stg_postgres__orders') }}
 
+),
+
+attribution as (
+
+    select * from {{ ref('stg_s3__attribution') }}
+
 )
 
 select
@@ -80,7 +91,9 @@ select
     items.freight_value,
     coalesce(items.items_price, 0) + coalesce(items.freight_value, 0) as order_value,
     payments.payment_value,
-    payments.payment_source
+    payments.payment_source,
+    attribution.channel as marketing_channel
 from orders
 left join items on orders.order_id = items.order_id
 left join payments on orders.order_id = payments.order_id
+left join attribution on orders.order_id = attribution.order_id

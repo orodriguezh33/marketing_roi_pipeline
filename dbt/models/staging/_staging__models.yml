@@ -122,6 +122,23 @@ models:
           arguments:
             column_name: "spend_date || '-' || channel"
 
+  - name: stg_s3__attribution
+    description: >
+      raw_s3.attribution (full refresh): casting de tipos + normalización de
+      canal vía el seed channel_mapping. Grano: un order_id -- no todo
+      order_id tiene fila (una fracción queda sin atribuir a propósito, ver
+      docs/ROADMAP.md -> Fase 3, Ampliación, decisión #15). Deduplicado por
+      order_id, conservando la fila más reciente por _airbyte_extracted_at.
+    columns:
+      - name: order_id
+        description: FK hacia stg_postgres__orders (no todo order_id de ahí tiene fila acá).
+        tests: [not_null, unique]
+      - name: channel
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["Google Ads", "Facebook Ads", "Instagram Ads", "Email Marketing"]
+
   - name: stg_sheets__budget
     description: >
       raw_sheets.budget (full refresh): 1:1 con la hoja, solo casting.
