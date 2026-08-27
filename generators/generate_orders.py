@@ -2,8 +2,12 @@
 """Generador continuo de actividad en Postgres para alimentar CDC (Fase 1/2).
 
 Cada corrida hace dos cosas:
-1. Inserta pedidos nuevos (orders + order_items + order_payments), reusando
-   customers/products/sellers ya cargados por seed_olist.py.
+1. Inserta pedidos nuevos (orders + order_items + order_payments). Una fracción
+   (NEW_CUSTOMER_SHARE) crea un customer_id/customer_unique_id genuinamente nuevo en
+   vez de reusar uno existente -- si el 100% de los pedidos reusara clientes viejos
+   (como pasaba antes), "cliente nuevo" quedaría indefinido para toda la operación
+   sintética, y con eso también CAC. El resto sí reusa customers/products/sellers ya
+   cargados por seed_olist.py.
 2. Avanza el estado de pedidos existentes un paso en el camino feliz
    created -> approved -> processing -> shipped -> delivered, actualizando la
    columna de timestamp correspondiente. No toca pedidos 'canceled'/'unavailable'
@@ -52,11 +56,54 @@ def connect():
     )
 
 
-def insert_new_orders(cur, count: int) -> int:
+NEW_CUSTOMER_SHARE = 0.6
+BRAZILIAN_STATES = [
+    "SP",
+    "RJ",
+    "MG",
+    "RS",
+    "PR",
+    "SC",
+    "BA",
+    "DF",
+    "GO",
+    "PE",
+]
+
+
+def _new_customer_id(cur) -> str:
+    customer_id = uuid.uuid4().hex
+    customer_unique_id = uuid.uuid4().hex
     cur.execute(
-        "SELECT customer_id FROM customers ORDER BY random() LIMIT %s", (count,)
+        """
+        INSERT INTO customers (
+            customer_id, customer_unique_id, customer_zip_code_prefix,
+            customer_city, customer_state
+        ) VALUES (%s, %s, %s, %s, %s)
+        """,
+        (
+            customer_id,
+            customer_unique_id,
+            random.randint(1000, 99999),
+            "sao paulo",
+            random.choice(BRAZILIAN_STATES),
+        ),
+    )
+    return customer_id
+
+
+def insert_new_orders(cur, count: int) -> int:
+    new_count = round(count * NEW_CUSTOMER_SHARE)
+    reused_count = count - new_count
+
+    cur.execute(
+        "SELECT customer_id FROM customers ORDER BY random() LIMIT %s",
+        (reused_count,),
     )
     customer_ids = [row[0] for row in cur.fetchall()]
+    customer_ids += [_new_customer_id(cur) for _ in range(new_count)]
+    random.shuffle(customer_ids)
+
     cur.execute("SELECT product_id FROM products ORDER BY random() LIMIT 200")
     product_ids = [row[0] for row in cur.fetchall()]
     cur.execute("SELECT seller_id FROM sellers ORDER BY random() LIMIT 200")

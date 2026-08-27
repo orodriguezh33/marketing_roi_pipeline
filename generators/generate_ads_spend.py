@@ -10,6 +10,11 @@ propósito: la normalización real de canal pasa en dbt staging (Fase 3).
 Por default genera solo el gasto de hoy (modo "corrida diaria"); con
 --start-date/--end-date se puede generar de una el rango histórico completo
 (ej. 2016-2018), para que ROAS tenga con qué compararse en todo el período.
+
+El spend por canal usa el `spend_range` de generators/channel_profiles.py (no un
+rango único para los 4) -- así el share de presupuesto por canal varía de forma
+realista en vez de ser estadísticamente plano, que es lo que necesita
+generate_attribution.py para producir un ROAS/CAC distinto por canal.
 """
 
 import argparse
@@ -23,12 +28,7 @@ from datetime import date, datetime, timedelta
 import boto3
 from dotenv import load_dotenv
 
-CHANNEL_VARIANTS = {
-    "Google Ads": ["Google Ads", "google_ads", "GoogleAds"],
-    "Facebook Ads": ["Facebook Ads", "facebook_ads", "FacebookAds"],
-    "Instagram Ads": ["Instagram Ads", "instagram_ads", "InstagramAds"],
-    "Email Marketing": ["Email Marketing", "email_marketing", "EmailMarketing"],
-}
+from channel_profiles import CHANNEL_PROFILES, CHANNEL_VARIANTS
 
 
 def daterange(start: date, end: date):
@@ -42,8 +42,9 @@ def build_csv(start: date, end: date) -> str:
     writer = csv.writer(buffer)
     writer.writerow(["date", "channel", "spend", "currency"])
     for day in daterange(start, end):
-        for variants in CHANNEL_VARIANTS.values():
-            spend = round(random.uniform(200, 3000), 2)
+        for channel, variants in CHANNEL_VARIANTS.items():
+            low, high = CHANNEL_PROFILES[channel].spend_range
+            spend = round(random.uniform(low, high), 2)
             writer.writerow([day.isoformat(), variants[variant_index], spend, "BRL"])
     return buffer.getvalue()
 
